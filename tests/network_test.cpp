@@ -5,10 +5,12 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <stdexcept>
 #include <thread>
+#include <vector>
 
 namespace {
 int failures = 0;
@@ -129,6 +131,29 @@ void invalid_post_handshake_order_is_rejected() {
     worker.check();
 }
 
+void invalid_task_preserves_decoded_id() {
+    RunningWorker worker;
+    auto socket = bom::net::connect_tcp("127.0.0.1", worker.port(), std::chrono::seconds(1));
+    bom::net::send_message(socket, bom::protocol::make_hello(),
+                           bom::net::deadline_after(std::chrono::seconds(1)));
+    static_cast<void>(bom::net::receive_message(
+        socket, bom::net::deadline_after(std::chrono::seconds(1))));
+    const std::vector<std::uint8_t> invalid_task = {
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+    };
+    bom::net::send_message(
+        socket,
+        {bom::protocol::MessageType::task, invalid_task},
+        bom::net::deadline_after(std::chrono::seconds(1)));
+    const auto error = bom::protocol::parse_error(bom::net::receive_message(
+        socket, bom::net::deadline_after(std::chrono::seconds(1))));
+    CHECK(error.task_id == 0x0102030405060708ULL);
+    CHECK(error.code == bom::protocol::ErrorCode::invalid_task);
+    worker.check();
+}
+
 void bounded_timeout_and_refusal() {
     const bom::NetworkConfig short_timeout{
         std::chrono::milliseconds(200), std::chrono::milliseconds(100)};
@@ -204,6 +229,7 @@ int main() {
     shutdown_and_disconnect_do_not_stop_listener();
     task_before_hello_is_rejected();
     invalid_post_handshake_order_is_rejected();
+    invalid_task_preserves_decoded_id();
     bounded_timeout_and_refusal();
     wrong_task_id_is_rejected();
     fragmented_transport_and_worker_error();

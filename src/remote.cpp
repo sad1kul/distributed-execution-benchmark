@@ -212,8 +212,12 @@ void WorkerServer::serve_session_messages(net::Socket& socket) {
 
         std::uint64_t task_id = protocol::kUnknownTaskId;
         try {
+            // A correctly framed TASK always exposes its ID even if later fields are invalid.
+            task_id = 0;
+            for (std::size_t index = 0; index < 8; ++index) {
+                task_id = (task_id << 8U) | message.payload[index];
+            }
             const auto task = protocol::parse_task(message);
-            task_id = task.task_id;
             const auto result = execute_task({task.task_id, task.dimension, task.seed});
             net::send_message(socket, protocol::make_result(to_protocol(result)),
                               net::deadline_after(config_.message_timeout));
