@@ -240,6 +240,8 @@ void t28_dimension_mismatch() {
 void t29_storage_mismatch() {
     CHECK_THROWS_AS(bom::multiply({2, {1}}, {2, {1, 0, 0, 1}}), std::invalid_argument);
     CHECK_THROWS_AS(bom::checksum({2, {1}}), std::invalid_argument);
+    CHECK_THROWS_AS(bom::multiply({0, {}}, {0, {}}), std::invalid_argument);
+    CHECK_THROWS_AS(bom::checksum({0, {}}), std::invalid_argument);
 }
 
 void t30_boundaries() {

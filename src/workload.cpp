@@ -60,6 +60,9 @@ Inputs generate_inputs(std::uint32_t n, std::uint64_t seed, std::uint32_t max_di
 }
 
 MatrixC multiply(const Matrix& a, const Matrix& b) {
+    if (a.n == 0 || b.n == 0) {
+        throw std::invalid_argument("matrix dimension must be greater than zero");
+    }
     if (a.n != b.n) {
         throw std::invalid_argument("matrix dimensions do not match");
     }
@@ -102,6 +105,9 @@ std::uint64_t fnv1a64_le64(std::uint64_t hash, std::uint64_t value) {
 }
 
 std::uint64_t checksum(const MatrixC& c) {
+    if (c.n == 0) {
+        throw std::invalid_argument("matrix dimension must be greater than zero");
+    }
     const std::size_t count = checked_square(static_cast<std::size_t>(c.n));
     if (c.data.size() != count) {
         throw std::invalid_argument("matrix storage does not match its dimension");
