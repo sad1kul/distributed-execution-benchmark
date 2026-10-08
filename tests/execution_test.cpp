@@ -94,7 +94,10 @@ void verification_failures() {
 
     auto mismatch = batch.observations;
     ++mismatch[0].result.checksum;
-    CHECK(!bom::verify_batch(tasks, expected, mismatch).valid);
+    const auto mismatch_verification = bom::verify_batch(tasks, expected, mismatch);
+    CHECK(!mismatch_verification.valid);
+    CHECK(mismatch_verification.completed_tasks == 1);
+    CHECK(mismatch_verification.failed_tasks == 1);
 
     auto failed = batch.observations;
     failed[0].success = false;

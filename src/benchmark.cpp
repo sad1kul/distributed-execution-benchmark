@@ -1,6 +1,7 @@
 #include "benchmark.hpp"
 
 #include <chrono>
+#include <atomic>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -55,6 +56,13 @@ std::string default_experiment_id(const BenchmarkConfig& config) {
     }
     return value + "_" + to_string(config.execution.mode) + "_n" +
            std::to_string(config.dimension) + "_tasks" + std::to_string(config.task_count);
+}
+
+std::string unique_run_id(const std::string& experiment_id) {
+    static std::atomic<std::uint64_t> sequence{0};
+    const auto ticks = std::chrono::system_clock::now().time_since_epoch().count();
+    return experiment_id + "_run_" + std::to_string(ticks) + "_" +
+           std::to_string(sequence.fetch_add(1));
 }
 
 std::string csv_field(const std::string& value) {
@@ -349,7 +357,7 @@ BenchmarkOutput run_benchmark(const BenchmarkConfig& config) {
     const std::string experiment_id = config.experiment_id.empty()
                                           ? default_experiment_id(config)
                                           : config.experiment_id;
-    const std::string run_id = experiment_id + "_run0";
+    const std::string run_id = unique_run_id(experiment_id);
     write_task_csv(result.task_csv, config, experiment_id, run_id, batches);
     write_batch_csv(result.batch_csv, config, experiment_id, run_id, batches);
     write_environment(result.environment_json, config, experiment_id);

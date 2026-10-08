@@ -24,10 +24,25 @@ std::string read_file(const std::filesystem::path& path) {
     return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
 }
 
+std::string first_run_id(const std::filesystem::path& path) {
+    std::ifstream input(path);
+    std::string header;
+    std::string row;
+    std::getline(input, header);
+    std::getline(input, row);
+    const auto first = row.find(',');
+    const auto second = row.find(',', first + 1);
+    if (first == std::string::npos || second == std::string::npos) {
+        return {};
+    }
+    return row.substr(first + 1, second - first - 1);
+}
+
 void local_output_pipeline() {
     const auto unique = std::chrono::steady_clock::now().time_since_epoch().count();
-    const auto directory = std::filesystem::temp_directory_path() /
-                           ("bom-benchmark-test-" + std::to_string(unique));
+    const auto root = std::filesystem::temp_directory_path() /
+                      ("bom-benchmark-test-" + std::to_string(unique));
+    const auto directory = root / "first";
     bom::BenchmarkConfig config;
     config.execution.mode = bom::ExecutionMode::local_2;
     config.dimension = 3;
@@ -49,12 +64,17 @@ void local_output_pipeline() {
     CHECK(batches.find("connection_setup_ns") != std::string::npos);
     CHECK(environment.find("coordinator_architecture") != std::string::npos);
 
+    auto second_config = config;
+    second_config.output_directory = root / "second";
+    const auto second_output = bom::run_benchmark(second_config);
+    CHECK(first_run_id(output.batch_csv) != first_run_id(second_output.batch_csv));
+
     try {
         static_cast<void>(bom::run_benchmark(config));
         CHECK(false);
     } catch (const std::invalid_argument&) {
     }
-    std::filesystem::remove_all(directory);
+    std::filesystem::remove_all(root);
 }
 
 void validation() {

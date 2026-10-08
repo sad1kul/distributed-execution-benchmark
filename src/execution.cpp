@@ -180,10 +180,12 @@ Verification verify_batch(
                              observation.failure_reason);
             continue;
         }
-        ++completed;
         const auto iterator = expected.find(task_id);
         if (iterator != expected.end() && observation.result.checksum != iterator->second) {
+            ++failed;
             errors.push_back("checksum mismatch for task " + std::to_string(task_id));
+        } else {
+            ++completed;
         }
     }
     for (const auto task_id : task_ids) {

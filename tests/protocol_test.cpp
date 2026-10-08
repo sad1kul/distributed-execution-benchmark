@@ -110,6 +110,7 @@ void malformed_frames() {
 
     CHECK_PROTOCOL_ERROR(make_task({1, 0, 2}));
     CHECK_PROTOCOL_ERROR(make_task({1, 2049, 2}));
+    CHECK_PROTOCOL_ERROR(make_error({1, static_cast<ErrorCode>(99)}));
     CHECK_PROTOCOL_ERROR(parse_result(Message{MessageType::result, std::vector<std::uint8_t>(41)}));
 }
 

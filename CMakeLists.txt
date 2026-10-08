@@ -53,8 +53,8 @@ endif()
 target_compile_definitions(bom_benchmark PRIVATE
   BOM_COMPILER_ID="${CMAKE_CXX_COMPILER_ID}"
   BOM_COMPILER_VERSION="${CMAKE_CXX_COMPILER_VERSION}"
-  BOM_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
-  BOM_COMPILE_FLAGS="${BOM_RECORDED_FLAGS}")
+  BOM_BUILD_TYPE="$<CONFIG>"
+  BOM_COMPILE_FLAGS="${CMAKE_CXX_FLAGS} $<$<CONFIG:Debug>:${CMAKE_CXX_FLAGS_DEBUG}>$<$<CONFIG:Release>:${CMAKE_CXX_FLAGS_RELEASE}>$<$<CONFIG:RelWithDebInfo>:${CMAKE_CXX_FLAGS_RELWITHDEBINFO}>$<$<CONFIG:MinSizeRel>:${CMAKE_CXX_FLAGS_MINSIZEREL}> ${BOM_RECORDED_FLAGS}")
 
 add_executable(bom_benchmark_cli src/benchmark_main.cpp)
 set_target_properties(bom_benchmark_cli PROPERTIES OUTPUT_NAME bom_benchmark)

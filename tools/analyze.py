@@ -22,6 +22,12 @@ MATCH_FIELDS = (
     "message_timeout_ms",
 )
 BUILD_FIELDS = ("compiler", "compiler_version", "build_configuration", "compiler_flags")
+COORDINATOR_FIELDS = (
+    "coordinator_architecture",
+    "coordinator_cpu_model",
+    "operating_system",
+    "kernel_or_os_version",
+)
 TWO_WORKER_MODES = {"local-2", "local-remote"}
 
 
@@ -47,6 +53,14 @@ def load_directory(directory: Path) -> tuple[list[dict[str, str]], dict[str, Any
         if missing:
             raise ValueError(f"{batch_path}: missing columns {', '.join(missing)}")
         row["_source"] = str(batch_path)
+        for field in (
+            "worker_host",
+            "worker_architecture",
+            "worker_cpu_model",
+            "worker_cpu_allocation",
+            "network_environment",
+        ):
+            row[f"_environment_{field}"] = str(environment.get(field, "unknown"))
     return rows, environment
 
 
@@ -54,16 +68,22 @@ def build_compatibility(environments: list[dict[str, Any]]) -> tuple[bool, str]:
     if not environments:
         return False, "no environment records"
     differences = []
-    for field in BUILD_FIELDS:
+    for field in (*BUILD_FIELDS, *COORDINATOR_FIELDS):
         values = {str(environment.get(field, "unknown")) for environment in environments}
         if "unknown" in values:
             differences.append(f"{field} is unknown")
         elif len(values) != 1:
             differences.append(f"{field} differs: {sorted(values)}")
-    architectures = sorted({str(item.get("coordinator_architecture", "unknown"))
-                            for item in environments})
-    systems = sorted({str(item.get("operating_system", "unknown")) for item in environments})
-    context = f"coordinator_architectures={architectures}; operating_systems={systems}"
+    coordinator_context = "; ".join(
+        f"{field}={sorted({str(item.get(field, 'unknown')) for item in environments})}"
+        for field in COORDINATOR_FIELDS
+    )
+    worker_context = "; ".join(
+        f"{field}={sorted({str(item.get(field, 'unknown')) for item in environments})}"
+        for field in ("worker_architecture", "worker_cpu_model", "worker_cpu_allocation",
+                      "network_environment")
+    )
+    context = coordinator_context + "; " + worker_context
     if differences:
         return False, "; ".join(differences) + "; " + context
     return True, context
@@ -82,18 +102,39 @@ def summarize(directories: list[Path]) -> tuple[list[dict[str, Any]], list[dict[
 
     excluded = []
     valid = []
+    observation_keys = set()
     for row in rows:
         reason = ""
+        observation_key = (
+            row.get("experiment_id", ""),
+            row.get("run_id", ""),
+            row.get("repetition", ""),
+            row.get("mode", ""),
+        )
+        if observation_key in observation_keys:
+            raise ValueError(f"duplicate batch observation identity: {observation_key}")
+        observation_keys.add(observation_key)
         if row["batch_valid"].lower() != "true":
             reason = row.get("failure_reason") or "invalid batch"
         elif row.get("experiment_id", "").startswith("smoke-"):
             reason = "functional smoke-test data is excluded from performance summaries"
+        elif (row["mode"] in {"remote-1", "local-remote"} and
+              row.get("_environment_worker_host") in {"127.0.0.1", "::1", "localhost"}):
+            reason = "loopback remote execution is functional evidence, not machine-boundary data"
+        elif row["mode"] in TWO_WORKER_MODES and int(row["task_count"]) < 2:
+            reason = "two-worker observation has fewer than two tasks"
+        elif row["workload_version"] != "1":
+            reason = "unsupported numerical workload version"
         else:
             try:
                 duration = int(row["total_batch_ns"])
                 count = int(row["task_count"])
+                completed = int(row.get("completed_tasks", ""))
+                failed = int(row.get("failed_tasks", ""))
                 if duration <= 0 or count <= 0:
                     reason = "nonpositive duration or task count"
+                elif completed != count or failed != 0:
+                    reason = "batch marked valid with inconsistent completion counts"
             except ValueError:
                 reason = "invalid numeric observation"
         if reason:

@@ -1,9 +1,12 @@
 #include "socket.hpp"
 
+#include "resolver_gate.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cerrno>
 #include <cstring>
+#include <exception>
 #include <future>
 #include <limits>
 #include <memory>
@@ -166,13 +169,15 @@ struct Address {
 std::vector<Address> resolve_now(
     const std::string& host,
     const std::string& service,
-    bool passive) {
+    bool passive,
+    bool numeric_only = false) {
     ensure_runtime();
     addrinfo hints{};
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
-    hints.ai_flags = passive ? AI_PASSIVE : 0;
+    hints.ai_flags = (passive ? AI_PASSIVE : 0) |
+                     (numeric_only ? (AI_NUMERICHOST | AI_NUMERICSERV) : 0);
     addrinfo* raw = nullptr;
     const int result = getaddrinfo(host.empty() ? nullptr : host.c_str(), service.c_str(), &hints, &raw);
     if (result != 0) {
@@ -202,14 +207,48 @@ std::vector<Address> resolve_now(
     return addresses;
 }
 
+detail::ResolverGate& resolver_gate() {
+    static detail::ResolverGate gate;
+    return gate;
+}
+
+bool is_numeric_host(const std::string& host) {
+    ensure_runtime();
+    in_addr ipv4{};
+    in6_addr ipv6{};
+    return inet_pton(AF_INET, host.c_str(), &ipv4) == 1 ||
+           inet_pton(AF_INET6, host.c_str(), &ipv6) == 1;
+}
+
 std::vector<Address> resolve_with_deadline(
     const std::string& host,
     const std::string& service,
     Deadline deadline) {
-    std::packaged_task<std::vector<Address>()> task(
-        [host, service] { return resolve_now(host, service, false); });
-    auto future = task.get_future();
-    std::thread(std::move(task)).detach();
+    if (is_numeric_host(host)) {
+        return resolve_now(host, service, false, true);
+    }
+
+    auto& gate = resolver_gate();
+    if (!gate.try_acquire()) {
+        throw NetworkError("another hostname resolution is still in progress");
+    }
+    auto promise = std::make_shared<std::promise<std::vector<Address>>>();
+    auto future = promise->get_future();
+    try {
+        std::thread([host, service, promise, &gate] {
+            try {
+                auto addresses = resolve_now(host, service, false);
+                gate.release();
+                promise->set_value(std::move(addresses));
+            } catch (...) {
+                gate.release();
+                promise->set_exception(std::current_exception());
+            }
+        }).detach();
+    } catch (...) {
+        gate.release();
+        throw;
+    }
     if (future.wait_until(deadline) != std::future_status::ready) {
         throw TimeoutError("address resolution deadline exceeded");
     }
@@ -266,6 +305,9 @@ std::intptr_t Socket::native_handle() const noexcept {
 }
 
 void Socket::send_all(std::span<const std::uint8_t> bytes, Deadline deadline) {
+    if (!valid()) {
+        throw NetworkError("send attempted on a closed socket");
+    }
     std::size_t sent = 0;
     while (sent < bytes.size()) {
         wait_ready(native(handle_), true, deadline);
@@ -300,6 +342,9 @@ void Socket::send_all(std::span<const std::uint8_t> bytes, Deadline deadline) {
 }
 
 std::vector<std::uint8_t> Socket::receive_exact(std::size_t size, Deadline deadline) {
+    if (!valid()) {
+        throw NetworkError("receive attempted on a closed socket");
+    }
     std::vector<std::uint8_t> bytes(size);
     std::size_t received = 0;
     while (received < size) {

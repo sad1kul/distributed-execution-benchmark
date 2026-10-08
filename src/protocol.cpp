@@ -167,13 +167,14 @@ Message make_result(const Result& result) {
 }
 
 Message make_error(const Error& error) {
-    if (static_cast<std::uint16_t>(error.code) == 0) {
-        throw ProtocolError("error code must be nonzero");
+    const auto code = static_cast<std::uint16_t>(error.code);
+    if (code < 1 || code > 5) {
+        throw ProtocolError("unknown error code");
     }
     std::vector<std::uint8_t> payload;
     payload.reserve(10);
     append_u64(payload, error.task_id);
-    append_u16(payload, static_cast<std::uint16_t>(error.code));
+    append_u16(payload, code);
     return Message{MessageType::error, std::move(payload)};
 }
 

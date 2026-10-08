@@ -51,7 +51,14 @@ def write_run(root: Path, mode: str, durations: list[int], *, invalid: bool = Fa
         "build_configuration": "Release",
         "compiler_flags": "-O2",
         "coordinator_architecture": "arm64",
+        "coordinator_cpu_model": "test-cpu",
         "operating_system": "test",
+        "kernel_or_os_version": "test-kernel",
+        "worker_host": "192.0.2.1" if mode in {"remote-1", "local-remote"} else "unknown",
+        "worker_architecture": "arm64" if mode in {"remote-1", "local-remote"} else "unknown",
+        "worker_cpu_model": "test-worker" if mode in {"remote-1", "local-remote"} else "unknown",
+        "worker_cpu_allocation": "2" if mode in {"remote-1", "local-remote"} else "unknown",
+        "network_environment": "controlled-test" if mode in {"remote-1", "local-remote"} else "unknown",
     }
     (directory / "environment.json").write_text(json.dumps(environment), encoding="utf-8")
     return directory
@@ -80,6 +87,27 @@ def main() -> int:
             raise AssertionError("missing baseline was accepted")
         except ValueError:
             pass
+        try:
+            analyze.summarize([directories[0], directories[0]])
+            raise AssertionError("duplicate observations were accepted")
+        except ValueError:
+            pass
+        loopback = write_run(root, "remote-loopback", [100])
+        batch_path = loopback / "batch_observations.csv"
+        rows = list(csv.DictReader(batch_path.open(newline="", encoding="utf-8")))
+        rows[0]["mode"] = "remote-1"
+        rows[0]["experiment_id"] = "manual-localhost"
+        with batch_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=FIELDS)
+            writer.writeheader()
+            writer.writerows(rows)
+        environment_path = loopback / "environment.json"
+        environment = json.loads(environment_path.read_text(encoding="utf-8"))
+        environment["worker_host"] = "127.0.0.1"
+        environment_path.write_text(json.dumps(environment), encoding="utf-8")
+        summaries, loopback_excluded, _ = analyze.summarize([directories[0], loopback])
+        assert {row["mode"] for row in summaries} == {"local-1"}
+        assert "loopback" in loopback_excluded[0]["exclusion_reason"]
     print("analysis tests passed")
     return 0
 

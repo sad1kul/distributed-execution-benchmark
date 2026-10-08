@@ -1,6 +1,7 @@
 #include "remote.hpp"
 
 #include "protocol.hpp"
+#include "resolver_gate.hpp"
 
 #include <array>
 #include <atomic>
@@ -172,6 +173,17 @@ void bounded_timeout_and_refusal() {
     worker.check();
 }
 
+void resolver_work_is_bounded() {
+    bom::net::detail::ResolverGate gate;
+    CHECK(gate.try_acquire());
+    CHECK(gate.active());
+    CHECK(!gate.try_acquire());
+    gate.release();
+    CHECK(!gate.active());
+    CHECK(gate.try_acquire());
+    gate.release();
+}
+
 void wrong_task_id_is_rejected() {
     auto listener = bom::net::listen_tcp("127.0.0.1", 0);
     std::thread fake_worker([&] {
@@ -231,6 +243,7 @@ int main() {
     invalid_post_handshake_order_is_rejected();
     invalid_task_preserves_decoded_id();
     bounded_timeout_and_refusal();
+    resolver_work_is_bounded();
     wrong_task_id_is_rejected();
     fragmented_transport_and_worker_error();
     if (failures == 0) {
