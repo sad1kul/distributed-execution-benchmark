@@ -6,6 +6,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <mutex>
 #include <string>
 
 namespace bom {
@@ -56,10 +57,13 @@ public:
 
 private:
     void serve_session(net::Socket socket);
+    void serve_session_messages(net::Socket& socket);
 
     net::Listener listener_;
     NetworkConfig config_;
     std::atomic<bool> stopping_{false};
+    std::mutex active_socket_mutex_;
+    net::Socket* active_socket_{nullptr};
 };
 
 }  // namespace bom

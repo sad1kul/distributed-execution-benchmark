@@ -142,9 +142,29 @@ void WorkerServer::run() {
 void WorkerServer::request_stop() noexcept {
     stopping_.store(true);
     listener_.socket.close();
+    std::lock_guard lock(active_socket_mutex_);
+    if (active_socket_ != nullptr) {
+        active_socket_->close();
+    }
 }
 
 void WorkerServer::serve_session(net::Socket socket) {
+    {
+        std::lock_guard lock(active_socket_mutex_);
+        active_socket_ = &socket;
+    }
+    try {
+        serve_session_messages(socket);
+    } catch (...) {
+        std::lock_guard lock(active_socket_mutex_);
+        active_socket_ = nullptr;
+        throw;
+    }
+    std::lock_guard lock(active_socket_mutex_);
+    active_socket_ = nullptr;
+}
+
+void WorkerServer::serve_session_messages(net::Socket& socket) {
     bool handshake_complete = false;
     for (;;) {
         protocol::Message message;

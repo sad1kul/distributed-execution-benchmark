@@ -30,6 +30,7 @@ namespace {
 
 #ifdef _WIN32
 using NativeSocket = SOCKET;
+using SocketLength = int;
 constexpr NativeSocket kInvalidSocket = INVALID_SOCKET;
 
 struct WinsockRuntime {
@@ -64,6 +65,7 @@ int socket_error(NativeSocket socket) {
 }
 #else
 using NativeSocket = int;
+using SocketLength = socklen_t;
 constexpr NativeSocket kInvalidSocket = -1;
 void ensure_runtime() {}
 int last_error() { return errno; }
@@ -155,7 +157,7 @@ void wait_ready(NativeSocket socket, bool writing, Deadline deadline) {
 
 struct Address {
     sockaddr_storage storage{};
-    socklen_t length{};
+    SocketLength length{};
     int family{};
     int socket_type{};
     int protocol{};
@@ -188,7 +190,7 @@ std::vector<Address> resolve_now(
         }
         Address address;
         std::memcpy(&address.storage, item->ai_addr, item->ai_addrlen);
-        address.length = static_cast<socklen_t>(item->ai_addrlen);
+        address.length = static_cast<SocketLength>(item->ai_addrlen);
         address.family = item->ai_family;
         address.socket_type = item->ai_socktype;
         address.protocol = item->ai_protocol;
@@ -390,7 +392,7 @@ Listener listen_tcp(const std::string& bind_address, std::uint16_t port) {
             continue;
         }
         sockaddr_storage bound{};
-        socklen_t length = sizeof(bound);
+        SocketLength length = sizeof(bound);
         if (getsockname(native(socket.native_handle()), reinterpret_cast<sockaddr*>(&bound), &length) != 0) {
             throw NetworkError(error_message("getsockname", last_error()));
         }

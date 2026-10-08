@@ -2,6 +2,7 @@
 
 #include "protocol.hpp"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -112,6 +113,22 @@ void task_before_hello_is_rejected() {
     worker.check();
 }
 
+void invalid_post_handshake_order_is_rejected() {
+    RunningWorker worker;
+    auto socket = bom::net::connect_tcp("127.0.0.1", worker.port(), std::chrono::seconds(1));
+    bom::net::send_message(socket, bom::protocol::make_hello(),
+                           bom::net::deadline_after(std::chrono::seconds(1)));
+    CHECK(bom::net::receive_message(socket, bom::net::deadline_after(std::chrono::seconds(1))).type ==
+          bom::protocol::MessageType::hello);
+    bom::net::send_message(socket, bom::protocol::make_hello(),
+                           bom::net::deadline_after(std::chrono::seconds(1)));
+    const auto response = bom::net::receive_message(
+        socket, bom::net::deadline_after(std::chrono::seconds(1)));
+    CHECK(bom::protocol::parse_error(response).code ==
+          bom::protocol::ErrorCode::unexpected_message);
+    worker.check();
+}
+
 void bounded_timeout_and_refusal() {
     const bom::NetworkConfig short_timeout{
         std::chrono::milliseconds(200), std::chrono::milliseconds(100)};
@@ -152,14 +169,44 @@ void wrong_task_id_is_rejected() {
     fake_worker.join();
 }
 
+void fragmented_transport_and_worker_error() {
+    auto listener = bom::net::listen_tcp("127.0.0.1", 0);
+    std::thread fake_worker([&] {
+        auto socket = bom::net::accept_tcp(
+            listener.socket, bom::net::deadline_after(std::chrono::seconds(1)));
+        static_cast<void>(bom::net::receive_message(
+            socket, bom::net::deadline_after(std::chrono::seconds(1))));
+        for (const auto byte : bom::protocol::encode_message(bom::protocol::make_hello())) {
+            const std::array<std::uint8_t, 1> fragment{byte};
+            socket.send_all(fragment, bom::net::deadline_after(std::chrono::seconds(1)));
+        }
+        const auto task_message = bom::net::receive_message(
+            socket, bom::net::deadline_after(std::chrono::seconds(1)));
+        const auto task = bom::protocol::parse_task(task_message);
+        const auto encoded = bom::protocol::encode_message(
+            bom::protocol::make_error({task.task_id, bom::protocol::ErrorCode::task_failed}));
+        for (const auto byte : encoded) {
+            const std::array<std::uint8_t, 1> fragment{byte};
+            socket.send_all(fragment, bom::net::deadline_after(std::chrono::seconds(1)));
+        }
+    });
+    {
+        bom::RemoteSession session("127.0.0.1", listener.port);
+        CHECK_FAILURE(session.execute({12, 2, 3}));
+    }
+    fake_worker.join();
+}
+
 }  // namespace
 
 int main() {
     persistent_and_fresh_sessions();
     shutdown_and_disconnect_do_not_stop_listener();
     task_before_hello_is_rejected();
+    invalid_post_handshake_order_is_rejected();
     bounded_timeout_and_refusal();
     wrong_task_id_is_rejected();
+    fragmented_transport_and_worker_error();
     if (failures == 0) {
         std::cout << "network tests passed\n";
     }
