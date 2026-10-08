@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import ipaddress
 import json
 import math
 from pathlib import Path
@@ -29,6 +30,33 @@ COORDINATOR_FIELDS = (
     "kernel_or_os_version",
 )
 TWO_WORKER_MODES = {"local-2", "local-remote"}
+REMOTE_MODES = {"remote-1", "local-remote"}
+REMOTE_REQUIRED_FIELDS = (
+    "worker_host",
+    "coordinator_host_id",
+    "worker_host_id",
+    "remote_worker_provenance",
+    "worker_architecture",
+    "worker_cpu_model",
+    "worker_cpu_allocation",
+    "network_environment",
+    "network_rtt",
+    "physical_or_virtual_machine",
+    "power_mode",
+)
+REMOTE_CONTEXT_FIELDS = (
+    "worker_host",
+    "coordinator_host_id",
+    "worker_host_id",
+    "remote_worker_provenance",
+    "worker_architecture",
+    "worker_cpu_model",
+    "worker_cpu_allocation",
+    "network_environment",
+    "network_rtt",
+    "physical_or_virtual_machine",
+    "power_mode",
+)
 
 
 def nearest_rank_p95(values: list[int]) -> int:
@@ -53,13 +81,7 @@ def load_directory(directory: Path) -> tuple[list[dict[str, str]], dict[str, Any
         if missing:
             raise ValueError(f"{batch_path}: missing columns {', '.join(missing)}")
         row["_source"] = str(batch_path)
-        for field in (
-            "worker_host",
-            "worker_architecture",
-            "worker_cpu_model",
-            "worker_cpu_allocation",
-            "network_environment",
-        ):
+        for field in REMOTE_REQUIRED_FIELDS:
             row[f"_environment_{field}"] = str(environment.get(field, "unknown"))
     return rows, environment
 
@@ -87,6 +109,38 @@ def build_compatibility(environments: list[dict[str, Any]]) -> tuple[bool, str]:
     if differences:
         return False, "; ".join(differences) + "; " + context
     return True, context
+
+
+def is_loopback_host(host: str) -> bool:
+    normalized = host.strip().lower()
+    if normalized == "localhost":
+        return True
+    if normalized.startswith("[") and normalized.endswith("]"):
+        normalized = normalized[1:-1]
+    try:
+        address = ipaddress.ip_address(normalized)
+    except ValueError:
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    return address.is_loopback
+
+
+def remote_provenance_issue(row: dict[str, str]) -> str:
+    host = row.get("_environment_worker_host", "unknown")
+    if is_loopback_host(host):
+        return "loopback remote execution is functional evidence, not machine-boundary data"
+    missing = [
+        field for field in REMOTE_REQUIRED_FIELDS
+        if row.get(f"_environment_{field}", "unknown").strip().lower() in {"", "unknown"}
+    ]
+    if missing:
+        return "remote comparison lacks required provenance: " + ", ".join(missing)
+    coordinator = row["_environment_coordinator_host_id"]
+    worker = row["_environment_worker_host_id"]
+    if coordinator == worker:
+        return "remote worker provenance identifies the coordinator and worker as the same host"
+    return ""
 
 
 def summarize(directories: list[Path]) -> tuple[list[dict[str, Any]], list[dict[str, str]], str]:
@@ -118,9 +172,9 @@ def summarize(directories: list[Path]) -> tuple[list[dict[str, Any]], list[dict[
             reason = row.get("failure_reason") or "invalid batch"
         elif row.get("experiment_id", "").startswith("smoke-"):
             reason = "functional smoke-test data is excluded from performance summaries"
-        elif (row["mode"] in {"remote-1", "local-remote"} and
-              row.get("_environment_worker_host") in {"127.0.0.1", "::1", "localhost"}):
-            reason = "loopback remote execution is functional evidence, not machine-boundary data"
+        elif (row["mode"] in REMOTE_MODES and
+              (provenance_issue := remote_provenance_issue(row))):
+            reason = provenance_issue
         elif row["mode"] in TWO_WORKER_MODES and int(row["task_count"]) < 2:
             reason = "two-worker observation has fewer than two tasks"
         elif row["workload_version"] != "1":
@@ -151,6 +205,14 @@ def summarize(directories: list[Path]) -> tuple[list[dict[str, Any]], list[dict[
 
     summaries = []
     for key, modes in sorted(grouped.items()):
+        remote_contexts = {
+            tuple(row[f"_environment_{field}"] for field in REMOTE_CONTEXT_FIELDS)
+            for mode in REMOTE_MODES for row in modes.get(mode, [])
+        }
+        if len(remote_contexts) > 1:
+            raise ValueError(
+                f"comparison refused for {key}: remote worker or network configurations differ; "
+                "analyze each remote configuration separately")
         if "local-1" not in modes:
             raise ValueError(f"comparison refused for {key}: matched local-1 baseline is missing")
         baseline_values = [int(row["total_batch_ns"]) for row in modes["local-1"]]

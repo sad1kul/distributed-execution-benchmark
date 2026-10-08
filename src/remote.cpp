@@ -126,14 +126,26 @@ std::uint16_t WorkerServer::port() const noexcept {
 
 void WorkerServer::run() {
     while (!stopping_.load()) {
+        net::Socket socket;
         try {
-            auto socket = net::accept_tcp(
+            socket = net::accept_tcp(
                 listener_.socket, net::deadline_after(std::chrono::milliseconds(100)));
-            serve_session(std::move(socket));
         } catch (const net::TimeoutError&) {
+            continue;
         } catch (const net::NetworkError&) {
             if (!stopping_.load()) {
                 throw;
+            }
+            continue;
+        }
+
+        try {
+            serve_session(std::move(socket));
+        } catch (const net::NetworkError&) {
+            // A connected client owns only its session. Transport failure must not
+            // take down the listener needed by later independent clients.
+            if (stopping_.load()) {
+                return;
             }
         }
     }
@@ -141,10 +153,11 @@ void WorkerServer::run() {
 
 void WorkerServer::request_stop() noexcept {
     stopping_.store(true);
-    listener_.socket.close();
     std::lock_guard lock(active_socket_mutex_);
     if (active_socket_ != nullptr) {
-        active_socket_->close();
+        // shutdown wakes a blocked session operation without closing and possibly
+        // reusing its descriptor while the server thread still owns it.
+        active_socket_->shutdown_both();
     }
 }
 
@@ -152,6 +165,9 @@ void WorkerServer::serve_session(net::Socket socket) {
     {
         std::lock_guard lock(active_socket_mutex_);
         active_socket_ = &socket;
+        if (stopping_.load()) {
+            socket.shutdown_both();
+        }
     }
     try {
         serve_session_messages(socket);

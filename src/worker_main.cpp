@@ -40,6 +40,34 @@ void usage() {
                  "[--message-timeout-ms MS]\n";
 }
 
+class ShutdownWatcher {
+public:
+    explicit ShutdownWatcher(bom::WorkerServer& server)
+        : server_(server), thread_([this] { watch(); }) {}
+
+    ~ShutdownWatcher() {
+        finish_.store(true);
+        thread_.join();
+    }
+
+    ShutdownWatcher(const ShutdownWatcher&) = delete;
+    ShutdownWatcher& operator=(const ShutdownWatcher&) = delete;
+
+private:
+    void watch() noexcept {
+        while (!finish_.load() && stop_requested == 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+        if (stop_requested != 0) {
+            server_.request_stop();
+        }
+    }
+
+    bom::WorkerServer& server_;
+    std::atomic<bool> finish_{false};
+    std::thread thread_;
+};
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -71,14 +99,7 @@ int main(int argc, char** argv) {
         bom::WorkerServer server(bind_address, port, config);
         std::signal(SIGINT, handle_signal);
         std::signal(SIGTERM, handle_signal);
-        std::jthread watcher([&](std::stop_token token) {
-            while (stop_requested == 0 && !token.stop_requested()) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            }
-            if (stop_requested != 0) {
-                server.request_stop();
-            }
-        });
+        ShutdownWatcher watcher(server);
         std::cout << "READY " << bind_address << ':' << server.port() << '\n' << std::flush;
         server.run();
         stop_requested = 1;

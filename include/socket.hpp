@@ -39,6 +39,7 @@ public:
     Socket& operator=(Socket&& other) noexcept;
 
     [[nodiscard]] bool valid() const noexcept;
+    void shutdown_both() noexcept;
     void close() noexcept;
     [[nodiscard]] std::intptr_t native_handle() const noexcept;
 

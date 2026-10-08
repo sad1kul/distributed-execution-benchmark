@@ -13,6 +13,13 @@
 #include <thread>
 #include <vector>
 
+#ifdef _WIN32
+#define NOMINMAX
+#include <winsock2.h>
+#else
+#include <sys/socket.h>
+#endif
+
 namespace {
 int failures = 0;
 
@@ -100,6 +107,33 @@ void shutdown_and_disconnect_do_not_stop_listener() {
     bom::RemoteSession second("127.0.0.1", worker.port());
     CHECK(second.execute({1, 2, 3}).task_id == 1);
     second.shutdown();
+    worker.check();
+}
+
+void connection_reset_does_not_stop_listener() {
+    RunningWorker worker;
+    {
+        auto reset_client = bom::net::connect_tcp(
+            "127.0.0.1", worker.port(), std::chrono::seconds(1));
+        linger reset_linger{};
+        reset_linger.l_onoff = 1;
+        reset_linger.l_linger = 0;
+#ifdef _WIN32
+        const int result = setsockopt(
+            static_cast<SOCKET>(reset_client.native_handle()), SOL_SOCKET, SO_LINGER,
+            reinterpret_cast<const char*>(&reset_linger), sizeof(reset_linger));
+#else
+        const int result = setsockopt(
+            static_cast<int>(reset_client.native_handle()), SOL_SOCKET, SO_LINGER,
+            &reset_linger, sizeof(reset_linger));
+#endif
+        CHECK(result == 0);
+        reset_client.close();
+    }
+
+    bom::RemoteSession recovered("127.0.0.1", worker.port());
+    CHECK(recovered.execute({81, 2, 3}).task_id == 81);
+    recovered.shutdown();
     worker.check();
 }
 
@@ -239,6 +273,7 @@ void fragmented_transport_and_worker_error() {
 int main() {
     persistent_and_fresh_sessions();
     shutdown_and_disconnect_do_not_stop_listener();
+    connection_reset_does_not_stop_listener();
     task_before_hello_is_rejected();
     invalid_post_handshake_order_is_rejected();
     invalid_task_preserves_decoded_id();

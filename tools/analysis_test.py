@@ -19,8 +19,16 @@ FIELDS = [
 ]
 
 
-def write_run(root: Path, mode: str, durations: list[int], *, invalid: bool = False) -> Path:
-    directory = root / mode
+def write_run(
+    root: Path,
+    mode: str,
+    durations: list[int],
+    *,
+    invalid: bool = False,
+    name: str | None = None,
+    environment_updates: dict[str, object] | None = None,
+) -> Path:
+    directory = root / (name or mode)
     directory.mkdir()
     with (directory / "batch_observations.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=FIELDS)
@@ -54,12 +62,20 @@ def write_run(root: Path, mode: str, durations: list[int], *, invalid: bool = Fa
         "coordinator_cpu_model": "test-cpu",
         "operating_system": "test",
         "kernel_or_os_version": "test-kernel",
+        "coordinator_host_id": "coordinator-a",
         "worker_host": "192.0.2.1" if mode in {"remote-1", "local-remote"} else "unknown",
+        "worker_host_id": "worker-b" if mode in {"remote-1", "local-remote"} else "unknown",
+        "remote_worker_provenance": "inventory-record-1" if mode in {"remote-1", "local-remote"} else "unknown",
         "worker_architecture": "arm64" if mode in {"remote-1", "local-remote"} else "unknown",
         "worker_cpu_model": "test-worker" if mode in {"remote-1", "local-remote"} else "unknown",
         "worker_cpu_allocation": "2" if mode in {"remote-1", "local-remote"} else "unknown",
         "network_environment": "controlled-test" if mode in {"remote-1", "local-remote"} else "unknown",
+        "network_rtt": "1 ms" if mode in {"remote-1", "local-remote"} else "unknown",
+        "physical_or_virtual_machine": "physical",
+        "power_mode": "fixed-performance",
     }
+    if environment_updates:
+        environment.update(environment_updates)
     (directory / "environment.json").write_text(json.dumps(environment), encoding="utf-8")
     return directory
 
@@ -103,11 +119,38 @@ def main() -> int:
             writer.writerows(rows)
         environment_path = loopback / "environment.json"
         environment = json.loads(environment_path.read_text(encoding="utf-8"))
-        environment["worker_host"] = "127.0.0.1"
+        environment["worker_host"] = "127.0.0.2"
         environment_path.write_text(json.dumps(environment), encoding="utf-8")
         summaries, loopback_excluded, _ = analyze.summarize([directories[0], loopback])
         assert {row["mode"] for row in summaries} == {"local-1"}
         assert "loopback" in loopback_excluded[0]["exclusion_reason"]
+
+        mapped = write_run(root, "remote-1", [100], name="mapped-loopback",
+                           environment_updates={"worker_host": "::ffff:127.0.0.9"})
+        summaries, mapped_excluded, _ = analyze.summarize([directories[0], mapped])
+        assert {row["mode"] for row in summaries} == {"local-1"}
+        assert "loopback" in mapped_excluded[0]["exclusion_reason"]
+
+        same_host = write_run(root, "remote-1", [100], name="same-host",
+                              environment_updates={"worker_host_id": "coordinator-a"})
+        summaries, same_host_excluded, _ = analyze.summarize([directories[0], same_host])
+        assert {row["mode"] for row in summaries} == {"local-1"}
+        assert "same host" in same_host_excluded[0]["exclusion_reason"]
+
+        unknown_remote = write_run(root, "remote-1", [100], name="unknown-remote",
+                                   environment_updates={"remote_worker_provenance": "unknown"})
+        summaries, unknown_excluded, _ = analyze.summarize([directories[0], unknown_remote])
+        assert {row["mode"] for row in summaries} == {"local-1"}
+        assert "required provenance" in unknown_excluded[0]["exclusion_reason"]
+
+        different_network = write_run(
+            root, "remote-1", [100], name="different-network",
+            environment_updates={"network_environment": "other-network"})
+        try:
+            analyze.summarize([directories[0], directories[2], different_network])
+            raise AssertionError("different remote configurations were combined")
+        except ValueError as error:
+            assert "analyze each remote configuration separately" in str(error)
     print("analysis tests passed")
     return 0
 
