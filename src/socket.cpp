@@ -300,6 +300,17 @@ void Socket::close() noexcept {
     }
 }
 
+void Socket::shutdown_both() noexcept {
+    if (!valid()) {
+        return;
+    }
+#ifdef _WIN32
+    ::shutdown(native(handle_), SD_BOTH);
+#else
+    ::shutdown(native(handle_), SHUT_RDWR);
+#endif
+}
+
 std::intptr_t Socket::native_handle() const noexcept {
     return handle_;
 }

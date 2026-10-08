@@ -274,9 +274,12 @@ void write_environment(
            << "  \"experiment_id\": \"" << json_field(experiment_id) << "\",\n"
            << "  \"timestamp\": \"" << wall_timestamp() << "\",\n"
            << "  \"coordinator_architecture\": \"" << architecture() << "\",\n"
+           << "  \"coordinator_host_id\": \"unknown\",\n"
            << "  \"worker_architecture\": \"unknown\",\n"
            << "  \"coordinator_cpu_model\": \"" << json_field(cpu_model()) << "\",\n"
            << "  \"worker_cpu_model\": \"unknown\",\n"
+           << "  \"worker_host_id\": \"unknown\",\n"
+           << "  \"remote_worker_provenance\": \"unknown\",\n"
            << "  \"operating_system\": \"" << operating_system() << "\",\n"
            << "  \"kernel_or_os_version\": \"" << json_field(os_version()) << "\",\n"
            << "  \"compiler\": \"" << json_field(BOM_COMPILER_ID) << "\",\n"
@@ -292,8 +295,10 @@ void write_environment(
            << "  \"worker_port\": " << config.execution.worker_port << ",\n"
            << "  \"scale_out_eligible\": "
            << ((config.task_count >= 2) ? "true" : "false") << ",\n"
-           << "  \"manual_fields_required\": [\"worker architecture\", \"worker CPU model\", "
-              "\"host configuration\", \"network environment\", \"power mode\"]\n"
+           << "  \"manual_fields_required\": [\"coordinator host ID\", \"worker host ID\", "
+              "\"remote worker provenance\", \"worker architecture\", \"worker CPU model\", "
+              "\"host configuration\", \"network RTT\", \"network environment\", "
+              "\"power mode\"]\n"
            << "}\n";
 }
 

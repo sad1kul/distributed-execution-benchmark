@@ -77,6 +77,20 @@
 Hosted CI, Windows, Linux, x86-64, and real two-machine execution remain unverified
 until those environments actually run the branch.
 
+## V1 release-blocker corrections
+
+- Historical CI evidence at `238a94d`: Ubuntu GCC, Ubuntu Clang, Ubuntu Clang
+  sanitizers, and Windows MSVC x64 passed; macOS-14 Clang failed while compiling the
+  `std::jthread` watcher. These results predate and do not verify this correction.
+- Replaced the watcher with an exception-safe joinable `std::thread`; no thread is
+  detached and the watcher is destroyed before its `WorkerServer`.
+- Session transport failures, including TCP reset, no longer escape the accept loop.
+  Stop requests wake active sessions with `shutdown` while the owning server thread
+  retains responsibility for closing the descriptor.
+- Analysis now rejects numeric loopback variants, same-host or incomplete provenance,
+  and mixed remote-worker/network configurations while retaining local-only summaries.
+- Controlled two-machine performance evaluation remains pending.
+
 ## Final V1 audit — `e83c2c9`
 
 - Objective: independently trace requirements, reproduce tests, and correct verified
