@@ -59,3 +59,48 @@ are not translated and propagate to the caller.
   the same checked-in vectors.
 - Sprint 1 has no networking, coordinator, worker, protocol, timing, concurrency,
   CSV output, charts, or distributed execution modes.
+
+## V1 distributed execution
+
+### Architecture
+
+- Use an explicit BOMX binary protocol rather than native object layouts so mixed
+  native architectures share one defined wire representation.
+- Keep POSIX and Winsock behavior behind `Socket`. The deterministic workload remains
+  platform-independent.
+- Use one listening worker that handles one session and one computational task at a
+  time. SHUTDOWN ends a session, while process signals end the listener.
+- Use two pre-created threads and one release gate for two-lane modes. Static round
+  robin is reproducible but may be imbalanced on unequal hosts.
+- Compute expected checksums once before warm-up or measurement. Verification and
+  file output occur after the stored timer boundary.
+- Keep task observations and authoritative batch observations in separate CSV files.
+  Existing output files are not overwritten silently.
+- Use a standard-library Python analysis tool. Comparisons require matched workload
+  keys, a local-1 baseline, and compatible build records; smoke and invalid batches
+  are excluded with reasons.
+
+### Alternatives not selected
+
+- Dynamic scheduling could improve utilization but would change the frozen allocation
+  policy and complicate reproducibility.
+- TLS and authentication would change overhead and operational scope. V1 instead
+  requires a trusted network and defaults to loopback.
+- A shared batch duration on every task row would create pseudo-replication, so batch
+  timing has its own table.
+- Automatic retries could conceal failures and alter timing; V1 records failures once.
+- Plotting frameworks and dashboards were unnecessary for a raw research instrument.
+
+### Limitations
+
+- DNS resolution is bounded from the caller by a detached resolver task because the
+  system resolver has no portable cancellation API. A resolver blocked inside the OS
+  may finish after the caller receives a timeout.
+- Worker-provided durations are useful phase measurements but are not synchronized
+  clocks and must not be subtracted from coordinator timestamps.
+- V1 has no authentication or encryption and is unsuitable for public exposure.
+- Static allocation may leave one lane idle on heterogeneous hosts.
+- Automatically collected metadata is incomplete for remote hardware and several
+  environmental controls; controlled runs require manual completion.
+- Hosted CI and real two-machine execution were not performed during local
+  implementation.

@@ -64,3 +64,26 @@ jobs:
         run: |
           python3 tools/reference.py --write
           git diff --exit-code
+
+  windows-msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record architecture
+        shell: pwsh
+        run: |
+          Write-Output $env:PROCESSOR_ARCHITECTURE
+          Get-CimInstance Win32_Processor | Select-Object Name, AddressWidth
+      - name: Configure
+        run: cmake -S . -B build -A x64
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Verify reference anchors
+        run: python tools/reference.py --check
+      - name: Verify generated vectors are current
+        shell: pwsh
+        run: |
+          python tools/reference.py --write
+          git diff --exit-code

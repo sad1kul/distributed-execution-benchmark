@@ -1,1 +1,9 @@
 /build/
+__pycache__/
+*.pyc
+/results/raw/*
+!/results/raw/.gitkeep
+/results/summary/*
+!/results/summary/.gitkeep
+/results/environments/*
+!/results/environments/.gitkeep
