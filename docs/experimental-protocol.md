@@ -89,7 +89,11 @@ Each invocation receives a distinct run ID even when an experiment label is reus
 Analysis rejects mismatched workload/configuration keys, missing local-1 baselines,
 duplicate batch identities, incompatible coordinator/build records, invalid rows,
 one-task two-worker rows, loopback remote rows, and smoke-test experiment IDs.
-Hardware and network differences remain visible in the environment note.
+Hardware and network differences remain visible in the environment note. Remote
+comparisons require distinct manually recorded coordinator and worker host identities,
+an explicit provenance record, complete remote hardware and network metadata, and
+separate analysis invocations for different remote-worker or network configurations.
+A non-loopback address alone does not establish that two physical hosts participated.
 
 ## Controlled-study boundary
 

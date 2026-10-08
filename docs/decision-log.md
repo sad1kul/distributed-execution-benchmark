@@ -105,5 +105,15 @@ are not translated and propagate to the caller.
 - Static allocation may leave one lane idle on heterogeneous hosts.
 - Automatically collected metadata is incomplete for remote hardware and several
   environmental controls; controlled runs require manual completion.
+- Controlled remote analysis requires explicit distinct coordinator/worker host IDs,
+  a provenance note, remote hardware and network characterization, host type, and
+  power mode. Numeric non-loopback addressing is necessary but is not proof of two
+  hosts because a coordinator can connect to its own LAN address. Different remote
+  worker or network configurations must be analyzed separately.
+- Worker process signals are observed by a joinable `std::thread` watcher because the
+  macOS-14 hosted standard library did not provide `std::jthread`. Its RAII lifetime
+  joins on normal and exceptional exits. Stop requests use socket `shutdown` to wake
+  session I/O without concurrently closing and reusing descriptors; listener polling
+  remains bounded at 100 ms.
 - Hosted CI and real two-machine execution were not performed during local
   implementation.

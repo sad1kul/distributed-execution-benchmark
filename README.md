@@ -26,16 +26,19 @@ verification, timing, raw CSV output, environment records, and guarded analysis.
 Localhost functional tests pass on ARM64 macOS with AppleClang. No controlled
 performance study has been run and no speedup or break-even claim is made.
 
-Verified locally:
+Verified locally before these release corrections:
 
 - ARM64 macOS, AppleClang 21.0.0, Release build and all CTest tests.
 - The same local configuration with AddressSanitizer and UndefinedBehaviorSanitizer.
 - Python 3.14.7 golden-reference and analysis tests.
 
-Configured but not yet verified by executed hosted jobs: Ubuntu GCC, Ubuntu Clang,
-macOS Clang, Ubuntu Clang sanitizers, and Windows x86-64 MSVC. Linux, Windows, x86-64,
-Windows ARM64, Linux ARM64, macOS x86-64, and real multi-machine operation remain
-unverified. Source portability is not evidence that those configurations pass.
+Historical GitHub Actions evidence for `238a94d` records successful Ubuntu GCC,
+Ubuntu Clang, Ubuntu Clang ASan/UBSan, and Windows MSVC x64 jobs. Its macOS-14 Clang
+job failed while compiling the unsupported `std::jthread` shutdown watcher. Those
+historical jobs do not verify the local correction branch. Hosted verification of
+the correction remains pending until a human authorizes publication and GitHub
+Actions completes. Windows ARM64, Linux ARM64, macOS x86-64, and real multi-machine
+operation remain unverified.
 
 ## Architecture
 
@@ -156,8 +159,14 @@ python3 tools/analyze.py \
 The tool calculates throughput, median, nearest-rank p95, speedup, nominal two-worker
 efficiency, and relative machine-boundary penalty. It refuses missing baselines,
 mismatched configurations, duplicate observations, incompatible coordinator/build
-records, and loopback remote data. Invalid, single-task two-worker, and smoke-test rows
-are reported separately. The penalty is not isolated network overhead and may reflect
+records, loopback remote data, incomplete two-host provenance, and mixed remote-worker
+or network configurations. Numeric loopback classification includes the complete IPv4
+loopback range and IPv4-mapped IPv6 addresses. A non-loopback address is not evidence
+of a machine boundary: controlled remote rows require manually documented, distinct
+`coordinator_host_id` and `worker_host_id`, `remote_worker_provenance`, remote hardware,
+network RTT/environment, host type, and power mode. Local-only baselines remain usable
+without remote metadata. Invalid, single-task two-worker, and smoke-test rows are
+reported separately. The penalty is not isolated network overhead and may reflect
 hardware, memory, scheduling, and other system differences.
 
 ## Methodological limitations
