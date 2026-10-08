@@ -108,3 +108,21 @@ set_tests_properties(smoke_test PROPERTIES TIMEOUT 60 LABELS integration)
 
 add_test(NAME analysis_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/analysis_test.py)
 set_tests_properties(analysis_test PROPERTIES TIMEOUT 30)
+
+add_test(NAME benchmark_help COMMAND bom_benchmark_cli --help)
+add_test(NAME worker_help COMMAND bom_worker --help)
+add_test(
+  NAME benchmark_rejects_zero_tasks
+  COMMAND bom_benchmark_cli --mode local-1 --dimension 2 --task-count 0 --base-seed 1
+          --repetitions 1 --output-dir invalid-output)
+set_tests_properties(benchmark_rejects_zero_tasks PROPERTIES WILL_FAIL TRUE)
+add_test(
+  NAME benchmark_rejects_zero_repetitions
+  COMMAND bom_benchmark_cli --mode local-1 --dimension 2 --task-count 1 --base-seed 1
+          --repetitions 0 --output-dir invalid-output)
+set_tests_properties(benchmark_rejects_zero_repetitions PROPERTIES WILL_FAIL TRUE)
+add_test(
+  NAME benchmark_rejects_invalid_mode
+  COMMAND bom_benchmark_cli --mode invalid --dimension 2 --task-count 1 --base-seed 1
+          --repetitions 1 --output-dir invalid-output)
+set_tests_properties(benchmark_rejects_invalid_mode PROPERTIES WILL_FAIL TRUE)

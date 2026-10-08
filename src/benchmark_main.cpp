@@ -109,6 +109,12 @@ int main(int argc, char** argv) {
             config.execution.network.message_timeout.count() <= 0) {
             throw std::invalid_argument("network timeouts must be positive");
         }
+        if ((config.execution.mode == bom::ExecutionMode::local_2 ||
+             config.execution.mode == bom::ExecutionMode::local_remote) &&
+            config.task_count < 2) {
+            std::cerr << "warning: a single-task two-worker run is correctness-only and is not "
+                         "scale-out evidence\n";
+        }
         const auto result = bom::run_benchmark(config);
         std::cout << "task_csv=" << result.task_csv.string() << '\n'
                   << "batch_csv=" << result.batch_csv.string() << '\n'

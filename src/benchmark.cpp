@@ -282,6 +282,8 @@ void write_environment(
            << "  \"power_mode\": \"unknown\",\n"
            << "  \"worker_host\": \"" << json_field(config.execution.worker_host) << "\",\n"
            << "  \"worker_port\": " << config.execution.worker_port << ",\n"
+           << "  \"scale_out_eligible\": "
+           << ((config.task_count >= 2) ? "true" : "false") << ",\n"
            << "  \"manual_fields_required\": [\"worker architecture\", \"worker CPU model\", "
               "\"host configuration\", \"network environment\", \"power mode\"]\n"
            << "}\n";
@@ -299,6 +301,9 @@ BenchmarkOutput run_benchmark(const BenchmarkConfig& config) {
     }
     if (config.output_directory.empty()) {
         throw std::invalid_argument("output directory must be specified");
+    }
+    if (config.measured_repetitions > std::vector<MeasuredBatch>().max_size()) {
+        throw std::invalid_argument("measured repetition count is unsupported");
     }
     const auto tasks = make_tasks(config.dimension, config.task_count, config.base_seed);
     const auto expected = compute_expected_checksums(tasks);

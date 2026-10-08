@@ -34,6 +34,9 @@ std::vector<TaskSpec> make_tasks(
     if (task_count > static_cast<std::size_t>(std::numeric_limits<std::uint64_t>::max())) {
         throw std::invalid_argument("task count cannot be represented by task IDs");
     }
+    if (task_count > std::vector<TaskSpec>().max_size()) {
+        throw std::invalid_argument("task count is unsupported by this implementation");
+    }
     // Validation occurs before reserving task storage or allocating matrices.
     if (dimension == 0 || dimension > kDefaultMaxDimension) {
         throw std::invalid_argument("matrix dimension is outside the permitted range");
