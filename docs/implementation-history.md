@@ -76,3 +76,19 @@
 
 Hosted CI, Windows, Linux, x86-64, and real two-machine execution remain unverified
 until those environments actually run the branch.
+
+## Final V1 audit — `e83c2c9`
+
+- Objective: independently trace requirements, reproduce tests, and correct verified
+  release-readiness gaps without extending V1 scope.
+- Defects corrected: repeated DNS timeouts could create unbounded detached resolver
+  threads; run IDs were reused across invocations; compiler metadata omitted
+  configuration flags; checksum mismatches were not counted as failed tasks; analysis
+  accepted duplicate observations and insufficient environment matching.
+- Corrections: numeric-address DNS bypass, one global outstanding hostname lookup,
+  unique invocation run IDs, full configured flag recording, accurate failure counts,
+  duplicate/loopback/single-task analysis safeguards, and focused regression tests.
+- Test history: the first corrected Release run exposed a bug in the new run-ID test's
+  CSV column extraction. The test was fixed; the product behavior was unchanged.
+- Evidence: corrected Release and AppleClang ASan/UBSan builds each passed all 13 CTest
+  entries; Python anchors and golden regeneration also passed with no diff.

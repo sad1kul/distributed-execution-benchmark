@@ -93,9 +93,12 @@ are not translated and propagate to the caller.
 
 ### Limitations
 
-- DNS resolution is bounded from the caller by a detached resolver task because the
-  system resolver has no portable cancellation API. A resolver blocked inside the OS
-  may finish after the caller receives a timeout.
+- DNS resolution is bounded from the caller because the system resolver has no
+  portable cancellation API. Numeric addresses bypass DNS. At most one hostname
+  resolver task may remain after a timeout; further hostname attempts fail instead of
+  creating unbounded background threads. A blocked system lookup can still delay later
+  hostname resolutions, so controlled runs should prefer characterized numeric
+  addresses.
 - Worker-provided durations are useful phase measurements but are not synchronized
   clocks and must not be subtracted from coordinator timestamps.
 - V1 has no authentication or encryption and is unsuitable for public exposure.

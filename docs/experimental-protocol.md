@@ -73,6 +73,7 @@ avoided. Units are encoded in field names.
 Environment JSON records automatically observable coordinator and build fields.
 Worker hardware, allocation, network characterization, virtualization, and power mode
 must be completed manually when automatic detection reports `unknown`.
+Each invocation receives a distinct run ID even when an experiment label is reused.
 
 ## Analysis definitions
 
@@ -86,8 +87,9 @@ must be completed manually when automatic detection reports `unknown`.
 - p95 uses nearest rank: `ceil(0.95 * count) - 1` in a sorted zero-based array.
 
 Analysis rejects mismatched workload/configuration keys, missing local-1 baselines,
-incompatible build records, invalid rows, and smoke-test experiment IDs. Hardware and
-network differences must remain visible in the environment records.
+duplicate batch identities, incompatible coordinator/build records, invalid rows,
+one-task two-worker rows, loopback remote rows, and smoke-test experiment IDs.
+Hardware and network differences remain visible in the environment note.
 
 ## Controlled-study boundary
 

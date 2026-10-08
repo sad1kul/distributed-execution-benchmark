@@ -137,7 +137,8 @@ Each output directory contains:
 
 Expected checksums are prepared before warm-up and measured timing. Verification and
 CSV writing happen after the stored batch duration. Failed measured batches are kept
-and are never retried silently.
+and are never retried silently. Every invocation receives a distinct run ID; existing
+observation files are never overwritten silently.
 
 ## Analysis
 
@@ -154,9 +155,10 @@ python3 tools/analyze.py \
 
 The tool calculates throughput, median, nearest-rank p95, speedup, nominal two-worker
 efficiency, and relative machine-boundary penalty. It refuses missing baselines,
-mismatched configurations, and incompatible build records. Invalid and smoke-test
-rows are reported separately. The penalty is not isolated network overhead and may
-reflect hardware, memory, scheduling, and other system differences.
+mismatched configurations, duplicate observations, incompatible coordinator/build
+records, and loopback remote data. Invalid, single-task two-worker, and smoke-test rows
+are reported separately. The penalty is not isolated network overhead and may reflect
+hardware, memory, scheduling, and other system differences.
 
 ## Methodological limitations
 
