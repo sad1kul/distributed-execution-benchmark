@@ -131,8 +131,12 @@ void connection_reset_does_not_stop_listener() {
         reset_client.close();
     }
 
+    const bom::TaskSpec task{81, 2, 3};
+    const auto expected = bom::execute_task(task);
     bom::RemoteSession recovered("127.0.0.1", worker.port());
-    CHECK(recovered.execute({81, 2, 3}).task_id == 81);
+    const auto actual = recovered.execute(task);
+    CHECK(actual.task_id == expected.task_id);
+    CHECK(actual.checksum == expected.checksum);
     recovered.shutdown();
     worker.check();
 }

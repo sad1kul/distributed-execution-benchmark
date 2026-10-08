@@ -32,13 +32,17 @@ Verified locally before these release corrections:
 - The same local configuration with AddressSanitizer and UndefinedBehaviorSanitizer.
 - Python 3.14.7 golden-reference and analysis tests.
 
-Historical GitHub Actions evidence for `238a94d` records successful Ubuntu GCC,
-Ubuntu Clang, Ubuntu Clang ASan/UBSan, and Windows MSVC x64 jobs. Its macOS-14 Clang
-job failed while compiling the unsupported `std::jthread` shutdown watcher. Those
-historical jobs do not verify the local correction branch. Hosted verification of
-the correction remains pending until a human authorizes publication and GitHub
-Actions completes. Windows ARM64, Linux ARM64, macOS x86-64, and real multi-machine
-operation remain unverified.
+Hosted GitHub Actions verification for correction commit `ae847423` passed in
+[workflow run 37781195605](https://github.com/sad1kul/distributed-execution-benchmark/actions/runs/37781195605):
+
+- Ubuntu GCC.
+- Ubuntu Clang.
+- Ubuntu Clang with AddressSanitizer and UndefinedBehaviorSanitizer.
+- Windows MSVC x64.
+- macOS-14 hosted Clang.
+
+Windows ARM64, Linux ARM64, macOS x86-64, and real multi-machine operation remain
+unverified. Controlled two-machine performance evaluation remains pending.
 
 ## Architecture
 
