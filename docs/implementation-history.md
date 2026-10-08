@@ -63,5 +63,16 @@
 - Tests: deterministic byte-at-a-time transfer, malformed state transitions, worker
   errors, Release CTest, and the complete AppleClang ASan/UBSan suite passed.
 
+## Acceptance validation — `00e9387`, `e068211`
+
+- Files: CLI validation tests, benchmark metadata, task construction, worker error
+  correlation, and network regression tests.
+- Decision: single-task two-lane runs remain available for correctness but are marked
+  ineligible for scale-out evidence.
+- Defect corrected: an invalid but correctly framed TASK now retains its decoded task
+  ID in ERROR; the unknown-ID sentinel remains reserved for failures before decoding.
+- Tests: 13 Release CTest entries and the same 13 ASan/UBSan entries passed, including
+  the all-mode subprocess smoke test and the independent golden-reference check.
+
 Hosted CI, Windows, Linux, x86-64, and real two-machine execution remain unverified
 until those environments actually run the branch.
