@@ -182,7 +182,8 @@ void write_task_csv(
         throw std::runtime_error("cannot create task observation CSV");
     }
     output << "timestamp,experiment_id,run_id,repetition,mode,matrix_size,task_count,base_seed,"
-              "connection_mode,task_id,assigned_worker,dispatch_ns,completion_ns,task_latency_ns,"
+              "workload_version,connection_mode,connect_timeout_ms,message_timeout_ms,task_id,"
+              "assigned_worker,dispatch_ns,completion_ns,task_latency_ns,"
               "prepare_ns,compute_ns,checksum_ns,checksum,valid,failure_reason\n";
     for (const auto& measured : batches) {
         for (const auto& item : measured.batch.observations) {
@@ -194,8 +195,11 @@ void write_task_csv(
             output << measured.timestamp << ',' << csv_field(experiment_id) << ','
                    << csv_field(run_id) << ',' << measured.repetition << ','
                    << to_string(config.execution.mode) << ',' << config.dimension << ','
-                   << config.task_count << ',' << config.base_seed << ','
-                   << to_string(config.execution.connection_mode) << ',' << item.result.task_id << ','
+                   << config.task_count << ',' << config.base_seed << ",1,"
+                   << to_string(config.execution.connection_mode) << ','
+                   << config.execution.network.connect_timeout.count() << ','
+                   << config.execution.network.message_timeout.count() << ','
+                   << item.result.task_id << ','
                    << csv_field(item.assigned_worker) << ',' << item.dispatch_ns << ','
                    << item.completion_ns << ',' << latency << ',' << item.result.prepare_ns << ','
                    << item.result.compute_ns << ',' << item.result.checksum_ns << ",0x" << std::hex
@@ -220,13 +224,16 @@ void write_batch_csv(
         throw std::runtime_error("cannot create batch observation CSV");
     }
     output << "experiment_id,run_id,repetition,mode,matrix_size,task_count,base_seed,"
-              "connection_mode,total_batch_ns,connection_setup_ns,batch_valid,completed_tasks,"
+              "workload_version,connection_mode,connect_timeout_ms,message_timeout_ms,"
+              "total_batch_ns,connection_setup_ns,batch_valid,completed_tasks,"
               "failed_tasks,failure_reason\n";
     for (const auto& measured : batches) {
         output << csv_field(experiment_id) << ',' << csv_field(run_id) << ','
                << measured.repetition << ',' << to_string(config.execution.mode) << ','
-               << config.dimension << ',' << config.task_count << ',' << config.base_seed << ','
+               << config.dimension << ',' << config.task_count << ',' << config.base_seed << ",1,"
                << to_string(config.execution.connection_mode) << ','
+               << config.execution.network.connect_timeout.count() << ','
+               << config.execution.network.message_timeout.count() << ','
                << measured.batch.total_batch_ns << ',' << measured.batch.connection_setup_ns << ','
                << (measured.verification.valid ? "true" : "false") << ','
                << measured.verification.completed_tasks << ','

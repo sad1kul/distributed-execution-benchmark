@@ -105,3 +105,6 @@ add_test(
           --worker $<TARGET_FILE:bom_worker>
           --benchmark $<TARGET_FILE:bom_benchmark_cli>)
 set_tests_properties(smoke_test PROPERTIES TIMEOUT 60 LABELS integration)
+
+add_test(NAME analysis_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/analysis_test.py)
+set_tests_properties(analysis_test PROPERTIES TIMEOUT 30)
